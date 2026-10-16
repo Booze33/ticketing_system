@@ -1,0 +1,14 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: ticketing-redis
+    # Bound to 127.0.0.1 so Redis (no password) is NOT exposed to your network.
+    ports:
+      - "127.0.0.1:6379:6379"
+    # Rate-limit counters are throwaway data, so no disk persistence.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
