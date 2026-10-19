@@ -9,6 +9,7 @@ import com.booze.ticketing_system.exception.EmailAlreadyUsedException;
 import com.booze.ticketing_system.exception.UserLimitExceededException;
 import com.booze.ticketing_system.repo.AdminLockRepo;
 import com.booze.ticketing_system.repo.AdminRepo;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -32,6 +33,7 @@ public class AdminService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
     private final AuthenticationManager authenticationManager;
+    private final TokenRevocationService tokenRevocationService;
 
     @Transactional
     public AuthResponse signup(RegisterRequest request) {
@@ -80,6 +82,25 @@ public class AdminService {
         AdminPrincipal principal = (AdminPrincipal) authentication.getPrincipal();
 
         return issueTokens(principal.getId());
+    }
+
+    public AuthResponse refresh(String rawRefreshToken) {
+        RefreshTokenService.Rotated rotated = refreshTokenService.rotate(rawRefreshToken);
+        return new AuthResponse(
+                jwtService.generateAccessToken(rotated.userId()),
+                rotated.newRawToken(),
+                "Bearer",
+                jwtService.getAccessTokenExpirationSeconds());
+    }
+
+    public void logout(String userId, String accessToken, String refreshToken) {
+        Claims claims = jwtService.parseToken(accessToken);
+        if (!userId.equals(claims.getSubject())) {
+            throw new IllegalArgumentException("Access token subject does not match the authenticated user");
+        }
+
+        tokenRevocationService.revoke(claims.getId(), claims.getExpiration().toInstant());
+        refreshTokenService.revokeFamilyOf(refreshToken, userId);
     }
 
     private AuthResponse issueTokens(String userId) {

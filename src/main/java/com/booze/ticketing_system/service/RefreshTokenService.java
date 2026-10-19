@@ -66,8 +66,9 @@ public class RefreshTokenService {
     }
 
     @Transactional
-    public void revokeFamilyOf(String rawToken) {
+    public void revokeFamilyOf(String rawToken, String userId) {
         repo.findByTokenHash(hash(rawToken))
+                .filter(token -> token.getAdminId().equals(userId))
                 .ifPresent(t -> repo.revokeFamily(t.getFamilyId(), Instant.now()));
     }
 
